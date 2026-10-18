@@ -113,7 +113,7 @@ NAMES.forEach(function(n,s){
   }
 });
 
-var mode='free', running=false, target=null, last=null, taps=0, found=0, locked=false, ok=0, total=0, timers=[];
+var nextAt=0, nextT=null, mode='free', running=false, target=null, last=null, taps=0, found=0, locked=false, ok=0, total=0, timers=[];
 function later(fn,ms){var t=setTimeout(fn,ms);timers.push(t);return t}
 function clearTimers(){timers.forEach(clearTimeout);timers=[]}
 function clearDot(d){clearTimeout(d._t);d.textContent='';d.className='dot';d.removeAttribute('data-t')}
@@ -142,7 +142,7 @@ function nextNote(){
   clearAll(); locked=false; taps=found=0;
   do{target=LETTERS[Math.floor(Math.random()*7)]}while(target===last); last=target;
   setPrompt(target,false);
-  if(mode==='single'){bar(secs()); later(nextNote,secs()*1000); setStatus('Find '+target+'. Tap where you think it is.')}
+  if(mode==='single'){bar(secs()); nextAt=Date.now()+secs()*1000; nextT=later(nextNote,secs()*1000); setStatus('Find '+target+'. Tap where you think it is.')}
   else{bar(0); setStatus('Find all four '+target+' notes. Taps left: 4')}
 }
 function endRound(){
@@ -151,13 +151,21 @@ function endRound(){
   setStatus(found===4?'All four found.':'Found '+found+' of 4. Dashed circles were missed.');
   later(function(){clearAll();setPrompt('?',true);setStatus('Next note coming up...');bar(secs());later(nextNote,secs()*1000)},2000);
 }
+function holdFlash(ms){
+  var rem=nextAt-Date.now(); if(mode!=='single'||rem>=ms) return;
+  clearTimeout(nextT); nextAt=Date.now()+ms; nextT=later(nextNote,ms);
+  var f=$('fill'),w=f.getBoundingClientRect().width; f.style.webkitTransition=f.style.transition='none'; f.style.width=w+'px'; void f.offsetWidth;
+  f.style.webkitTransition=f.style.transition='width '+(ms/1000)+'s linear'; f.style.width='0';
+}
 function tap(d){
   if(mode==='free'){show(d,'neutral',2000);reveal(d,2000);return}
   if(!running||!target) return;
   if(mode==='single'){
     var hit=d.getAttribute('data-l')===target; total++; if(hit)ok++; scoreTxt();
-    show(d,hit?'ok':'bad',2000); reveal(d,2000);
-    setStatus(hit?'Correct. Dashed circles are the other '+target+' notes.':'Not quite. Dashed circles are every '+target+'.');
+    show(d,hit?'ok':'bad',2000);
+    if(hit){reveal(d,2000);setStatus('Correct. Dashed circles are the other '+target+' notes.')}
+    else{dots.forEach(function(x){if(x.getAttribute('data-l')===target&&!x.textContent)show(x,'miss',2000)});setStatus('Not quite. Dashed circles are every '+target+'.')}
+    holdFlash(2000);
     return;
   }
   if(locked||d.getAttribute('data-t')) return;
