@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Banjo Fretboard Note Trainer</title>
+<style>
+:root{--bg:#eef1f4;--panel:#fff;--ink:#14202b;--mute:#5d6b79;--line:#7a8693;--dot:#fff;--edge:#14202b;
+ --ok:#14805f;--bad:#c8363d;--miss:#b7791f;--neutral:#2b5d9e;--on:#fff;color-scheme:light}
+@media (prefers-color-scheme:dark){:root{--bg:#12151a;--panel:#1a1f26;--ink:#e7ecf1;--mute:#98a4b1;--line:#7d8896;--dot:#1d232b;--edge:#aab4c0;
+ --ok:#3fd0a8;--bad:#ff6b70;--miss:#f0b44c;--neutral:#6aa5ff;--on:#0e1217;color-scheme:dark}}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:16px/1.4 -apple-system,"Helvetica Neue",Arial,sans-serif;-webkit-text-size-adjust:100%}
+.app{display:flex;flex-direction:column;align-items:center;padding:12px;max-width:900px;margin:0 auto}
+.panel{width:100%;max-width:420px;background:var(--panel);border-radius:14px;padding:16px;margin-bottom:12px}
+.pa{order:1}.pb{order:2}.bw{order:3}.pc{order:4}
+h1{font-size:21px;line-height:1.15;margin:0 0 10px}
+.modes button{display:block;width:100%;margin-bottom:6px;font:600 15px -apple-system,Arial,sans-serif;text-align:left;padding:11px 12px;border-radius:8px;border:1.5px solid var(--line);background:transparent;color:var(--ink);cursor:pointer;touch-action:manipulation}
+.modes button.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+button:focus-visible,input:focus-visible,.dot:focus-visible{outline:3px solid var(--neutral);outline-offset:2px}
+.prompt{font:700 96px/96px "Arial Narrow",-apple-system,Arial,sans-serif;text-align:center;height:96px;color:var(--ink)}
+.prompt.dim{color:var(--mute);opacity:.4}
+.bar{height:6px;background:rgba(128,140,150,.3);border-radius:3px;overflow:hidden;margin:6px 0 10px}
+.bar i{display:block;height:100%;width:0;background:var(--neutral)}
+#status{min-height:44px;margin:0;color:var(--mute)}
+.row{display:flex;align-items:center;margin-bottom:12px}
+.row label{font-weight:600;margin-right:10px;white-space:nowrap}
+.row input{flex:1;min-width:0;accent-color:var(--neutral)}
+.row output{font-weight:600;min-width:40px;text-align:right}
+#stop{width:100%;font:600 17px -apple-system,Arial,sans-serif;padding:12px;border-radius:8px;border:0;background:var(--bad);color:var(--on);cursor:pointer;touch-action:manipulation}
+#score{margin:10px 0 0;font-weight:600}
+.hidden{display:none}
+#err{display:none;background:#c8363d;color:#fff;padding:8px 12px;border-radius:8px;margin-bottom:10px;max-width:420px;width:100%;font-size:14px}
+#err.show{display:block}
+
+.bw{padding:34px 12px 8px 42px}
+.board{position:relative;width:270px;height:470px}
+.nut{position:absolute;top:-3px;left:10%;width:80%;height:6px;margin-left:-4px;padding:0 4px;border-radius:3px;background:var(--ink);box-sizing:content-box}
+.str{position:absolute;top:0;height:100%;width:2px;margin-left:-1px;background:var(--line)}
+.fl{position:absolute;left:10%;width:80%;height:2px;margin-top:-1px;background:var(--line)}
+.sn{position:absolute;top:-30px;width:30px;margin-left:-15px;text-align:center;font:700 20px Arial,sans-serif}
+.fn{position:absolute;left:-40px;width:32px;margin-top:-11px;text-align:right;font:600 18px Arial,sans-serif;color:var(--mute)}
+.peg{position:absolute;width:12px;height:12px;margin:-6px 0 0 -6px;border-radius:50%;background:var(--ink)}
+.dot{position:absolute;width:32px;height:32px;margin:-16px 0 0 -16px;border-radius:50%;border:2px solid var(--edge);background:var(--dot);
+ color:var(--ink);font:700 18px/26px Arial,sans-serif;text-align:center;padding:0;cursor:pointer;-webkit-appearance:none;appearance:none;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+.dot.neutral{background:var(--neutral);border-color:var(--neutral);color:var(--on)}
+.dot.ok{background:var(--ok);border-color:var(--ok);color:var(--on)}
+.dot.bad{background:var(--bad);border-color:var(--bad);color:var(--on)}
+.dot.miss{border:3px dashed var(--miss);color:var(--miss);line-height:24px}
+
+@media (min-width:721px){
+ .app{display:grid;grid-template-columns:400px auto;grid-template-rows:auto auto auto 1fr;column-gap:28px;justify-content:center;align-items:start;padding:20px 16px}
+ .pa{grid-column:1;grid-row:1}.pb{grid-column:1;grid-row:2}.pc{grid-column:1;grid-row:3}
+ .bw{grid-column:2;grid-row:1 / span 4}
+ .prompt{font-size:150px;line-height:150px;height:150px}
+ .board{width:340px;height:540px}
+ #err{grid-column:1 / span 2;justify-self:center}
+}
+</style>
+</head>
+<body>
+<main class="app">
+  <noscript><div style="background:#c8363d;color:#fff;padding:10px 12px;border-radius:8px;margin-bottom:10px;max-width:420px">JavaScript is blocked here, so the trainer can't run. If you opened this from the Files app preview, open the web link in Safari instead.</div></noscript>
+  <div id="err" role="alert"></div>
+  <section class="panel pa">
+    <h1>5-string banjo note trainer</h1>
+    <div class="modes" id="modes">
+      <button type="button" data-m="free" class="on">Freestyle: tap any note to see its name</button>
+      <button type="button" data-m="single">Flashcard: find one note</button>
+      <button type="button" data-m="multi">Flashcard: find them all</button>
+    </div>
+  </section>
+  <section class="panel pb">
+    <div class="prompt dim" id="prompt">?</div>
+    <div class="bar"><i id="fill"></i></div>
+    <p id="status"></p>
+  </section>
+  <section class="bw"><div class="board" id="board"></div></section>
+  <section class="panel pc hidden" id="ctl">
+    <div class="row">
+      <label for="secs" id="secsLbl">Time between notes</label>
+      <input type="range" id="secs" min="2" max="8" step="1" value="4">
+      <output id="secsOut">4 s</output>
+    </div>
+    <button type="button" id="stop" class="hidden">Stop</button>
+    <p id="score"></p>
+  </section>
+</main>
+<script>
+(function(){
+'use strict';
+window.addEventListener('error',function(e){var el=document.getElementById('err');el.textContent='Something went wrong: '+e.message;el.className='show'});
+
+var NAT={0:'C',2:'D',4:'E',5:'F',7:'G',9:'A',11:'B'}, OPEN=[7,2,7,11,2], NAMES=['g','D','G','B','D'], LABELS=['5th string G, short','4th string D','3rd string G','2nd string B','1st string D'], LETTERS=['C','D','E','F','G','A','B'], NS=0;
+function $(id){return document.getElementById(id)}
+function sx(s){return 10+20*s}
+var board=$('board'), dots=[], H=12.6;
+var html='<div class="nut"></div>';
+NAMES.forEach(function(n,s){var x=sx(s);var st=(s===0)?'top:'+(5/H*100).toFixed(3)+'%;height:'+(100-5/H*100).toFixed(3)+'%;':'';
+  html+='<div class="str" style="left:'+x+'%;'+st+'"></div><div class="sn" style="left:'+x+'%">'+n+'</div>';
+  if(s===0)html+='<div class="peg" style="left:'+x+'%;top:'+(5/H*100).toFixed(3)+'%"></div>'});
+for(var f=1;f<=12;f++){
+  var t=(f/H*100).toFixed(3);
+  html+='<div class="fl" style="top:'+t+'%"></div><div class="fn" style="top:'+t+'%">'+f+'</div>';
+}
+board.innerHTML=html;
+NAMES.forEach(function(n,s){
+  var base=(s===0)?5:0;
+  for(var f=base+1;f<=12;f++){
+    var l=NAT[(OPEN[s]+f-base)%12]; if(!l) continue;
+    var b=document.createElement('button'); b.type='button'; b.className='dot'; b.setAttribute('data-l',l);
+    b.style.left=sx(s)+'%'; b.style.top=(f/H*100).toFixed(3)+'%';
+    b.setAttribute('aria-label',LABELS[s]+' string, fret '+f);
+    (function(d){d.addEventListener('click',function(){tap(d)})})(b);
+    board.appendChild(b); dots.push(b);
+  }
+});
+
+var nextAt=0, nextT=null, mode='free', running=false, target=null, last=null, taps=0, found=0, locked=false, ok=0, total=0, timers=[];
+function later(fn,ms){var t=setTimeout(fn,ms);timers.push(t);return t}
+function clearTimers(){timers.forEach(clearTimeout);timers=[]}
+function clearDot(d){clearTimeout(d._t);d.textContent='';d.className='dot';d.removeAttribute('data-t')}
+function clearAll(){dots.forEach(clearDot)}
+function show(d,cls,ms){clearTimeout(d._t);d.textContent=d.getAttribute('data-l');d.className='dot '+cls;if(ms)d._t=setTimeout(function(){clearDot(d)},ms)}
+function reveal(d,ms){dots.forEach(function(x){if(x!==d&&x.getAttribute('data-l')===d.getAttribute('data-l')&&!x.textContent)show(x,'miss',ms)})}
+function setStatus(t){$('status').textContent=t}
+function setPrompt(t,dim){var p=$('prompt');p.textContent=t;p.className='prompt'+(dim?' dim':'')}
+function bar(s){var f=$('fill');f.style.webkitTransition=f.style.transition='none';f.style.width='100%';void f.offsetWidth;
+  if(s){f.style.webkitTransition=f.style.transition='width '+s+'s linear';f.style.width='0'}else{f.style.width='0'}}
+function scoreTxt(){$('score').textContent=total?(ok+' of '+total+' taps correct'):''}
+function secs(){return +$('secs').value}
+
+function setMode(m){
+  mode=m; running=false; target=null; clearTimers(); clearAll(); bar(0); ok=total=0; scoreTxt();
+  Array.prototype.forEach.call(document.querySelectorAll('#modes button'),function(b){b.className=(b.getAttribute('data-m')===m)?'on':''});
+  var flash=m!=='free';
+  $('ctl').className='panel pc'+(flash?'':' hidden');
+  $('stop').className=flash?'':'hidden';
+  $('secsLbl').textContent=m==='multi'?'Pause between notes':'Time between notes';
+  setPrompt('?',true);
+  if(m==='free') setStatus('Tap any circle. Its note name shows for 2 seconds, and the same note elsewhere on the neck shows dashed.');
+  else{running=true;nextNote()}
+}
+function nextNote(){
+  clearAll(); locked=false; taps=found=0;
+  do{target=LETTERS[Math.floor(Math.random()*7)]}while(target===last); last=target;
+  setPrompt(target,false); NS=dots.filter(function(x){return x.getAttribute('data-l')===target}).length;
+  if(mode==='single'){bar(secs()); nextAt=Date.now()+secs()*1000; nextT=later(nextNote,secs()*1000); setStatus('Find '+target+'. Tap where you think it is.')}
+  else{bar(0); setStatus('Find all '+NS+' '+target+' notes. Taps left: '+NS)}
+}
+function endRound(){
+  locked=true;
+  dots.forEach(function(d){if(d.getAttribute('data-l')===target&&!d.getAttribute('data-t'))show(d,'miss')});
+  setStatus(found===NS?'All '+NS+' found.':'Found '+found+' of '+NS+'. Dashed circles were missed.');
+  later(function(){clearAll();setPrompt('?',true);setStatus('Next note coming up...');bar(secs());later(nextNote,secs()*1000)},2000);
+}
+function holdFlash(ms){
+  var rem=nextAt-Date.now(); if(mode!=='single'||rem>=ms) return;
+  clearTimeout(nextT); nextAt=Date.now()+ms; nextT=later(nextNote,ms);
+  var f=$('fill'),w=f.getBoundingClientRect().width; f.style.webkitTransition=f.style.transition='none'; f.style.width=w+'px'; void f.offsetWidth;
+  f.style.webkitTransition=f.style.transition='width '+(ms/1000)+'s linear'; f.style.width='0';
+}
+function tap(d){
+  if(mode==='free'){show(d,'neutral',2000);reveal(d,2000);return}
+  if(!running||!target) return;
+  if(mode==='single'){
+    var hit=d.getAttribute('data-l')===target; total++; if(hit)ok++; scoreTxt();
+    show(d,hit?'ok':'bad',2000);
+    if(hit){reveal(d,2000);setStatus('Correct. Dashed circles are the other '+target+' notes.')}
+    else{dots.forEach(function(x){if(x.getAttribute('data-l')===target&&!x.textContent)show(x,'miss',2000)});setStatus('Not quite. Dashed circles are every '+target+'.')}
+    holdFlash(2000);
+    return;
+  }
+  if(locked||d.getAttribute('data-t')) return;
+  d.setAttribute('data-t','1'); var h=d.getAttribute('data-l')===target;
+  taps++; total++; if(h){found++;ok++}
+  show(d,h?'ok':'bad'); scoreTxt();
+  if(taps===NS) endRound(); else setStatus('Find all '+NS+' '+target+' notes. Taps left: '+(NS-taps));
+}
+$('stop').addEventListener('click',function(){
+  running=false; clearTimers(); clearAll(); bar(0); setPrompt('?',true); target=null;
+  setStatus('Stopped. Tap a flashcard mode to start again.');
+});
+$('secs').addEventListener('input',function(){$('secsOut').textContent=secs()+' s'});
+Array.prototype.forEach.call(document.querySelectorAll('#modes button'),function(b){
+  b.addEventListener('click',function(){setMode(b.getAttribute('data-m'))});
+});
+setMode('free');
+})();
+</script>
+</body>
+</html>
