@@ -92,7 +92,7 @@ button:focus-visible,input:focus-visible,.dot:focus-visible{outline:3px solid va
 'use strict';
 window.addEventListener('error',function(e){var el=document.getElementById('err');el.textContent='Something went wrong: '+e.message;el.className='show'});
 
-var NAT={0:'C',2:'D',4:'E',5:'F',7:'G',9:'A',11:'B'}, OPEN=[7,2,7,11,2], NAMES=['g','D','G','B','D'], LABELS=['5th string G, short','4th string D','3rd string G','2nd string B','1st string D'], LETTERS=['C','D','E','F','G','A','B'], NS=0;
+var NAT={0:'C',2:'D',4:'E',5:'F',7:'G',9:'A',11:'B'}, OPEN=[7,2,7,11,2], NAMES=['g','D','G','B','D'], LABELS=['5th string G, short','4th string D','3rd string G','2nd string B','1st string D'], LETTERS=['C','D','E','F','G','A','B'], NS=0, MIDI=[67,50,55,59,62];
 function $(id){return document.getElementById(id)}
 function sx(s){return 10+20*s}
 var board=$('board'), dots=[], H=12.6;
@@ -110,7 +110,7 @@ NAMES.forEach(function(n,s){
   for(var f=base+1;f<=12;f++){
     var l=NAT[(OPEN[s]+f-base)%12]; if(!l) continue;
     var b=document.createElement('button'); b.type='button'; b.className='dot'; b.setAttribute('data-l',l);
-    b.style.left=sx(s)+'%'; b.style.top=(f/H*100).toFixed(3)+'%';
+    b.style.left=sx(s)+'%'; b.style.top=(f/H*100).toFixed(3)+'%'; b.setAttribute('data-midi',MIDI[s]+f-base);
     b.setAttribute('aria-label',LABELS[s]+' string, fret '+f);
     (function(d){d.addEventListener('click',function(){tap(d)})})(b);
     board.appendChild(b); dots.push(b);
@@ -124,6 +124,20 @@ function clearDot(d){clearTimeout(d._t);d.textContent='';d.className='dot';d.rem
 function clearAll(){dots.forEach(clearDot)}
 function show(d,cls,ms){clearTimeout(d._t);d.textContent=d.getAttribute('data-l');d.className='dot '+cls;if(ms)d._t=setTimeout(function(){clearDot(d)},ms)}
 function reveal(d,ms){dots.forEach(function(x){if(x!==d&&x.getAttribute('data-l')===d.getAttribute('data-l')&&!x.textContent)show(x,'miss',ms)})}
+var actx=null;
+function playNote(d){
+  try{
+    var AC=window.AudioContext||window.webkitAudioContext; if(!AC) return;
+    if(!actx) actx=new AC();
+    if(actx.state==='suspended') actx.resume();
+    var fq=440*Math.pow(2,(+d.getAttribute('data-midi')-69)/12), t=actx.currentTime;
+    var g=actx.createGain(), lp=actx.createBiquadFilter();
+    lp.type='lowpass'; lp.frequency.setValueAtTime(Math.min(Math.max(fq*6,1500),8000),t); lp.frequency.exponentialRampToValueAtTime(Math.max(fq*1.5,400),t+1.2);
+    g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(0.5,t+0.006); g.gain.exponentialRampToValueAtTime(0.0001,t+1.6);
+    [['triangle',fq,1],['sine',fq*2,0.3]].forEach(function(p){var o=actx.createOscillator(),pg=actx.createGain();o.type=p[0];o.frequency.value=p[1];pg.gain.value=p[2];o.connect(pg);pg.connect(lp);o.start(t);o.stop(t+1.7)});
+    lp.connect(g); g.connect(actx.destination);
+  }catch(e){}
+}
 function setStatus(t){$('status').textContent=t}
 function setPrompt(t,dim){var p=$('prompt');p.textContent=t;p.className='prompt'+(dim?' dim':'')}
 function bar(s){var f=$('fill');f.style.webkitTransition=f.style.transition='none';f.style.width='100%';void f.offsetWidth;
@@ -139,7 +153,7 @@ function setMode(m){
   $('stop').className=flash?'':'hidden';
   $('secsLbl').textContent=m==='multi'?'Pause between notes':'Time between notes';
   setPrompt('?',true);
-  if(m==='free') setStatus('Tap any circle. Its note name shows for 2 seconds, and the same note elsewhere on the neck shows dashed.');
+  if(m==='free') setStatus('Tap any circle. Its note name shows for 2 seconds with a tone, and the same note elsewhere on the neck shows dashed.');
   else{running=true;nextNote()}
 }
 function nextNote(){
@@ -162,7 +176,7 @@ function holdFlash(ms){
   f.style.webkitTransition=f.style.transition='width '+(ms/1000)+'s linear'; f.style.width='0';
 }
 function tap(d){
-  if(mode==='free'){show(d,'neutral',2000);reveal(d,2000);return}
+  if(mode==='free'){show(d,'neutral',2000);reveal(d,2000);playNote(d);return}
   if(!running||!target) return;
   if(mode==='single'){
     var hit=d.getAttribute('data-l')===target; total++; if(hit)ok++; scoreTxt();
