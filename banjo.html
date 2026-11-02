@@ -30,6 +30,7 @@ button:focus-visible,input:focus-visible,.dot:focus-visible{outline:3px solid va
 .row output{font-weight:600;min-width:40px;text-align:right}
 #stop{width:100%;font:600 17px -apple-system,Arial,sans-serif;padding:12px;border-radius:8px;border:0;background:var(--bad);color:var(--on);cursor:pointer;touch-action:manipulation}
 #score{margin:10px 0 0;font-weight:600}
+.rl{float:right;font:600 13px -apple-system,Arial,sans-serif;padding:6px 10px;border-radius:8px;border:1.5px solid var(--line);background:transparent;color:var(--ink);cursor:pointer;touch-action:manipulation}
 .hidden{display:none}
 #err{display:none;background:#c8363d;color:#fff;padding:8px 12px;border-radius:8px;margin-bottom:10px;max-width:420px;width:100%;font-size:14px}
 #err.show{display:block}
@@ -64,6 +65,7 @@ button:focus-visible,input:focus-visible,.dot:focus-visible{outline:3px solid va
   <noscript><div style="background:#c8363d;color:#fff;padding:10px 12px;border-radius:8px;margin-bottom:10px;max-width:420px">JavaScript is blocked here, so the trainer can't run. If you opened this from the Files app preview, open the web link in Safari instead.</div></noscript>
   <div id="err" role="alert"></div>
   <section class="panel pa">
+    <button type="button" id="reload" class="rl" aria-label="Reload page">&#8635; Reload</button>
     <h1>5-string banjo note trainer</h1>
     <div class="modes" id="modes">
       <button type="button" data-m="free" class="on">Freestyle: tap any note to see its name</button>
@@ -124,18 +126,29 @@ function clearDot(d){clearTimeout(d._t);d.textContent='';d.className='dot';d.rem
 function clearAll(){dots.forEach(clearDot)}
 function show(d,cls,ms){clearTimeout(d._t);d.textContent=d.getAttribute('data-l');d.className='dot '+cls;if(ms)d._t=setTimeout(function(){clearDot(d)},ms)}
 function reveal(d,ms){dots.forEach(function(x){if(x!==d&&x.getAttribute('data-l')===d.getAttribute('data-l')&&!x.textContent)show(x,'miss',ms)})}
-var actx=null;
+var wavCache={};
+function makeWav(midi){
+  var sr=22050,dur=1.8,n=Math.floor(sr*dur),fq=440*Math.pow(2,(midi-69)/12),low=fq<110;
+  var W=[1,low?0.9:0.55,low?0.6:0.35,0.22,0.14,0.09],D=[2.2,3,3.8,4.6,5.4,6.2],buf=new Float32Array(n),pk=0,i,k;
+  for(i=0;i<n;i++){
+    var t=i/sr,s=0;
+    for(k=0;k<6;k++){if(fq*(k+1)<sr/2-500)s+=W[k]*Math.exp(-D[k]*t)*Math.sin(2*Math.PI*fq*(k+1)*t)}
+    s*=Math.min(1,t/0.004)*Math.min(1,(dur-t)/0.05);
+    buf[i]=s;if(Math.abs(s)>pk)pk=Math.abs(s);
+  }
+  var b=new ArrayBuffer(44+n*2),v=new DataView(b);
+  function w(o,str){for(var j=0;j<str.length;j++)v.setUint8(o+j,str.charCodeAt(j))}
+  w(0,'RIFF');v.setUint32(4,36+n*2,true);w(8,'WAVE');w(12,'fmt ');v.setUint32(16,16,true);v.setUint16(20,1,true);v.setUint16(22,1,true);
+  v.setUint32(24,sr,true);v.setUint32(28,sr*2,true);v.setUint16(32,2,true);v.setUint16(34,16,true);w(36,'data');v.setUint32(40,n*2,true);
+  for(i=0;i<n;i++)v.setInt16(44+i*2,Math.round(buf[i]/pk*0.8*32767),true);
+  return URL.createObjectURL(new Blob([b],{type:'audio/wav'}));
+}
 function playNote(d){
   try{
-    var AC=window.AudioContext||window.webkitAudioContext; if(!AC) return;
-    if(!actx) actx=new AC();
-    if(actx.state==='suspended') actx.resume();
-    var fq=440*Math.pow(2,(+d.getAttribute('data-midi')-69)/12), t=actx.currentTime;
-    var g=actx.createGain(), lp=actx.createBiquadFilter();
-    lp.type='lowpass'; lp.frequency.setValueAtTime(Math.min(Math.max(fq*6,1500),8000),t); lp.frequency.exponentialRampToValueAtTime(Math.max(fq*1.5,400),t+1.2);
-    g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(0.5,t+0.006); g.gain.exponentialRampToValueAtTime(0.0001,t+1.6);
-    [['triangle',fq,1],['sine',fq*2,0.3]].forEach(function(p){var o=actx.createOscillator(),pg=actx.createGain();o.type=p[0];o.frequency.value=p[1];pg.gain.value=p[2];o.connect(pg);pg.connect(lp);o.start(t);o.stop(t+1.7)});
-    lp.connect(g); g.connect(actx.destination);
+    var m=+d.getAttribute('data-midi'),a=wavCache[m];
+    if(!a){a=wavCache[m]=new Audio(makeWav(m));a.preload='auto';a.setAttribute('playsinline','')}
+    try{a.currentTime=0}catch(e){}
+    var p=a.play();if(p&&p.catch)p.catch(function(){});
   }catch(e){}
 }
 function setStatus(t){$('status').textContent=t}
@@ -200,6 +213,7 @@ $('secs').addEventListener('input',function(){$('secsOut').textContent=secs()+' 
 Array.prototype.forEach.call(document.querySelectorAll('#modes button'),function(b){
   b.addEventListener('click',function(){setMode(b.getAttribute('data-m'))});
 });
+$('reload').addEventListener('click',function(){location.reload()});
 setMode('free');
 })();
 </script>
